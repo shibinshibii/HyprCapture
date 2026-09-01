@@ -790,6 +790,9 @@ void ResultThumbnail::startFileDrag() {
     m_draggingFile = true;
     m_closeTimer.stop();
 
+    m_card->hide(); //update-removing thumbnail while dragging
+
+
     auto* drag = new QDrag(this);
     auto* mimeData = new QMimeData;
     mimeData->setUrls({QUrl::fromLocalFile(m_path)});
@@ -806,6 +809,9 @@ void ResultThumbnail::startFileDrag() {
     m_draggingFile = false;
     if (action != Qt::IgnoreAction)
         close();
+        return; //update-removing thumbnail while dragging
+        m_card->show(); //update-removing thumbnail while dragging
+        applyLayerSize(); //update-removing thumbnail while dragging
 }
 
 void ResultThumbnail::enterEvent(QEnterEvent*) {
