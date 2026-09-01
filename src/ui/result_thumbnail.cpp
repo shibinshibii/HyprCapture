@@ -52,6 +52,7 @@ constexpr int kThumbnailMaxWidth = 320;
 constexpr int kThumbnailMaxHeight = 220;
 constexpr qreal kThumbnailMaxDevicePixelRatio = 4.0;
 constexpr int kThumbnailScreenMargin = 24;
+constexpr int kThumbnailCornerPadding = 20;
 constexpr int kTranscodeProgressRingSize = 64;
 constexpr double kSwipeCloseThreshold = 120.0;
 constexpr double kSwipeDeleteThreshold = 90.0;
@@ -520,7 +521,7 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
         layerWindow->setScope("hyprcapture-thumbnail");
         layerWindow->setLayer(LayerShellQt::Window::LayerOverlay);
         layerWindow->setAnchors(LayerShellQt::Window::Anchors{LayerShellQt::Window::AnchorRight} | LayerShellQt::Window::AnchorBottom);
-        layerWindow->setMargins(QMargins(0, 0, 0, 0));
+        layerWindow->setMargins(QMargins(0, 0, kThumbnailCornerPadding, kThumbnailCornerPadding));
         layerWindow->setExclusiveZone(0);
         layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
         layerWindow->setActivateOnShow(false);
