@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
+#include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -360,7 +361,7 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
     const QColor highlight = palette.color(QPalette::Highlight);
     setStyleSheet(QStringLiteral(
                       "#thumbnail { background: transparent; border: none; }"
-                      "#thumbnailImage { background: transparent; border: none; }"
+                      "#thumbnailImage { background: transparent; border: 1px solid rgba(255,255,255,60); border-radius: 6px; }"
                       "#thumbnailMenu { background: rgba(%1,%2,%3,242); border: 1px solid rgba(%4,%5,%6,90); border-radius: 7px; }"
                       "#thumbnailOpenWithMenu { background: rgba(%1,%2,%3,242); border: 1px solid rgba(%4,%5,%6,90); border-radius: 7px; }"
                       "#thumbnailMenu QPushButton { color: rgba(%4,%5,%6,255); background: transparent; padding: 7px 10px; border: none; border-radius: 5px; text-align: left; }"
@@ -483,8 +484,10 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
     m_card->setObjectName("thumbnailImageCard");
     m_card->setFixedSize((scaledLogicalSize + QSize(kThumbnailScreenMargin, kThumbnailScreenMargin)).expandedTo(QSize(1, 1)));
 
+    const QPoint imageInset(kThumbnailScreenMargin / 2, kThumbnailScreenMargin / 2);
+
     m_swipeBackdrop = new SwipeBackdrop(m_card);
-    m_swipeBackdrop->setGeometry(QRect(QPoint(0, 0), scaledLogicalSize));
+    m_swipeBackdrop->setGeometry(QRect(imageInset, scaledLogicalSize));
     m_swipeBackdrop->lower();
 
     m_imageLabel = new QLabel(m_card);
@@ -492,7 +495,14 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
     m_imageLabel->setAttribute(Qt::WA_StyledBackground);
     m_imageLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_imageLabel->setPixmap(scaledPixmap);
-    m_imageLabel->setGeometry(QRect(QPoint(0, 0), scaledLogicalSize));
+    m_imageLabel->setGeometry(QRect(imageInset, scaledLogicalSize));
+
+    auto* imageShadow = new QGraphicsDropShadowEffect(m_imageLabel);
+    imageShadow->setBlurRadius(10.0);
+    imageShadow->setOffset(0.0, 3.0);
+    imageShadow->setColor(QColor(0, 0, 0, 190));
+    m_imageLabel->setGraphicsEffect(imageShadow);
+
     m_transcodeOverlay = new TranscodeProgressOverlay(m_imageLabel);
     m_transcodeOverlay->setGeometry(m_imageLabel->rect());
     m_transcodeOverlay->hide();
