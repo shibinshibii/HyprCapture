@@ -790,8 +790,7 @@ void ResultThumbnail::startFileDrag() {
     m_draggingFile = true;
     m_closeTimer.stop();
 
-    m_card->hide(); //update-removing thumbnail while dragging
-
+    m_card->hide();
 
     auto* drag = new QDrag(this);
     auto* mimeData = new QMimeData;
@@ -800,20 +799,39 @@ void ResultThumbnail::startFileDrag() {
     const auto currentPixmap = m_imageLabel->pixmap();
     if (!currentPixmap.isNull()) {
         mimeData->setImageData(currentPixmap.toImage());
-        drag->setPixmap(currentPixmap.scaled(180, 120, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        drag->setHotSpot(QPoint(drag->pixmap().width() / 2, drag->pixmap().height() / 2));
+        drag->setPixmap(
+            currentPixmap.scaled(
+                320,
+                220,
+                Qt::KeepAspectRatio,
+                Qt::SmoothTransformation
+            )
+        );
+        drag->setHotSpot(
+            QPoint(
+                drag->pixmap().width() / 2,
+                drag->pixmap().height() / 2
+            )
+        );
     }
 
     drag->setMimeData(mimeData);
-    const auto action = drag->exec(Qt::CopyAction, Qt::CopyAction);
-    m_draggingFile = false;
-    if (action != Qt::IgnoreAction)
-        close();
-        return; //update-removing thumbnail while dragging
-        m_card->show(); //update-removing thumbnail while dragging
-        applyLayerSize(); //update-removing thumbnail while dragging
-}
 
+    const auto action = drag->exec(Qt::CopyAction, Qt::CopyAction);
+
+    m_draggingFile = false;
+
+    if (action != Qt::IgnoreAction) {
+        // Successfully dropped somewhere.
+        close();
+        return;
+    }
+
+    // Drag cancelled — restore the thumbnail.
+    m_card->show();
+    applyLayerSize();
+    startCloseTimer(m_closeTimer.interval());
+}
 void ResultThumbnail::enterEvent(QEnterEvent*) {
     m_closeTimer.stop();
 }
