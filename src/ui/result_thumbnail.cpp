@@ -47,8 +47,8 @@
 
 namespace {
 
-constexpr int kThumbnailMaxWidth = 180;
-constexpr int kThumbnailMaxHeight = 120;
+constexpr int kThumbnailMaxWidth = 320;
+constexpr int kThumbnailMaxHeight = 220;
 constexpr qreal kThumbnailMaxDevicePixelRatio = 4.0;
 constexpr int kThumbnailScreenMargin = 24;
 constexpr int kTranscodeProgressRingSize = 64;
@@ -400,6 +400,31 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
         if (!m_path.isEmpty() && openPath(m_path))
             close();
     });
+     if (!m_copyFile) {
+        addAction("Edit with Satty", [this] {
+            if (m_path.isEmpty())
+                return;
+
+            const QString satty =
+                hyprcapture::ui::trustedSystemProgram(QStringLiteral("satty"));
+
+            if (satty.isEmpty())
+                return;
+
+            QProcess process;
+
+            auto environment = hyprcapture::ui::trustedProcessEnvironment();
+            environment.remove("QT_WAYLAND_SHELL_INTEGRATION");
+            process.setProcessEnvironment(environment);
+
+            process.setProgram(satty);
+            process.setArguments({"--filename", m_path});
+
+            if (process.startDetached())
+                close();
+        });
+    }
+
     addAction("Open with", [this] {
         if (m_openWithPanel)
             m_openWithPanel->setVisible(!m_openWithPanel->isVisible());
