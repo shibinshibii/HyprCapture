@@ -20,6 +20,7 @@
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -238,6 +239,30 @@ QPointF wheelGestureDelta(QWheelEvent* event) {
         delta = -delta;
     return delta;
 }
+
+// QDrag::exec() is unreliable at reporting the resulting Qt::DropAction for
+// cross-application drops on Wayland: many compositors/toolkits never relay
+// the real dnd_action back to Qt's data source, so it commonly falls back to
+// Qt::IgnoreAction even though the drop was accepted by the target
+// application. Because of that, Qt::IgnoreAction alone cannot be trusted as
+// evidence the user cancelled the drag. This watcher captures the one signal
+// that unambiguously means "the user cancelled": pressing Escape while the
+// drag's nested event loop is running.
+class DragEscapeWatcher final : public QObject {
+  public:
+    using QObject::QObject;
+    bool wasCancelled() const { return m_cancelled; }
+
+  protected:
+    bool eventFilter(QObject*, QEvent* event) override {
+        if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape)
+            m_cancelled = true;
+        return false;
+    }
+
+  private:
+    bool m_cancelled = false;
+};
 
 bool pathIsUnderDirectory(const QString& path, const QString& root) {
     if (path.isEmpty() || root.isEmpty())
@@ -828,17 +853,23 @@ void ResultThumbnail::startFileDrag() {
 
     drag->setMimeData(mimeData);
 
+    DragEscapeWatcher escapeWatcher;
+    qApp->installEventFilter(&escapeWatcher);
     const auto action = drag->exec(Qt::CopyAction, Qt::CopyAction);
+    qApp->removeEventFilter(&escapeWatcher);
 
     m_draggingFile = false;
 
-    if (action != Qt::IgnoreAction) {
-        // Successfully dropped somewhere.
+    if (action != Qt::IgnoreAction || !escapeWatcher.wasCancelled()) {
+        // Either a drop action came back, or it didn't but the user never
+        // pressed Escape either — on Wayland that almost always means the
+        // drop was accepted by a cross-application target and Qt simply
+        // failed to report the real action. Treat it as completed.
         close();
         return;
     }
 
-    // Drag cancelled — restore the thumbnail.
+    // Explicit Escape cancel — restore the thumbnail.
     m_card->show();
     applyLayerSize();
     startCloseTimer(m_closeTimer.interval());
