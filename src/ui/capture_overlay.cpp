@@ -724,13 +724,18 @@ CaptureOutputResult writeCaptureOutput(const QImage& image,
     return result;
 }
 
+// Computes the destination filename for a capture using the configured save
+// directory + filename template, regardless of whether auto-save is on.
+// This is the single source of truth for that path: the auto-save flow uses
+// it directly, and the swipe-right "keep this capture" flow (when auto-save
+// is off) computes the exact same path so the file ends up exactly where it
+// would have if auto-save had been on. Directory creation only happens when
+// `save` is actually on, so a capture the user discards with auto-save off
+// never leaves so much as an empty folder behind.
 QString plannedCaptureOutputPath(const hyprcapture::CaptureDefaults& defaults, const QString& windowClass, const QString& windowTitle) {
-    if (!defaults.save)
-        return {};
-
     const auto dirPath = hyprcapture::expandUserPath(defaults.saveDir);
     QDir       dir(QString::fromStdString(dirPath.string()));
-    if (!dir.exists())
+    if (defaults.save && !dir.exists())
         dir.mkpath(".");
     return uniqueOutputPath(
         dir,
@@ -749,26 +754,6 @@ QString thumbnailDeleteRoot(const hyprcapture::CaptureDefaults& defaults) {
     if (!defaults.save)
         return {};
     return QString::fromStdString(hyprcapture::expandUserPath(defaults.saveDir).string());
-}
-
-// When `save` is disabled, the full-resolution capture only ever lands in a
-// private runtime temp file (see thumbnailTargetPath) — nothing is written
-// to the user's configured save directory. This computes where it *would*
-// go if the user decides to keep it (swipe-right on the thumbnail), using
-// the same directory + filename-template logic as a normal save. It's a
-// plan, not a write: the directory is intentionally not created here, so a
-// capture the user discards never leaves so much as an empty folder behind.
-// Returns empty when `save` is already on, since the file is persisted
-// automatically and there's nothing left for a swipe to do.
-QString pendingSaveTargetPath(const hyprcapture::CaptureDefaults& defaults, const QString& windowClass, const QString& windowTitle) {
-    if (defaults.save)
-        return {};
-
-    const auto dirPath = hyprcapture::expandUserPath(defaults.saveDir);
-    QDir       dir(QString::fromStdString(dirPath.string()));
-    return uniqueOutputPath(
-        dir,
-        QString::fromStdString(hyprcapture::makeTimestampedFilename(defaults.filenameTemplate, windowClass.toStdString(), windowTitle.toStdString())));
 }
 
 QString saveThumbnailPreview(const QImage& image) {
@@ -4017,8 +4002,7 @@ void CaptureOverlay::renderAndSaveCapture() {
                                                                QString::fromStdString(filenameMetadata.windowClass),
                                                                QString::fromStdString(filenameMetadata.windowTitle));
     const QString targetPath = thumbnailTargetPath(m_defaults, plannedOutputPath);
-    const QString pendingSavePath =
-        pendingSaveTargetPath(m_defaults, QString::fromStdString(filenameMetadata.windowClass), QString::fromStdString(filenameMetadata.windowTitle));
+    const QString pendingSavePath = m_defaults.save ? QString{} : plannedOutputPath;
     const QString restoreClipboardPath =
         (m_defaults.clipboard && m_defaults.showThumbnail) ? hyprcapture::ui::runtimeFile("clipboard", ".json") : QString{};
     bool thumbnailStarted = false;
