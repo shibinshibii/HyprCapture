@@ -13,6 +13,7 @@
 #include <QCursor>
 #include <QDrag>
 #include <QEasingCurve>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
@@ -364,6 +365,7 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
                                  QString path,
                                  QString restoreClipboardPath,
                                  QString deleteRoot,
+                                 QString pendingSavePath,
                                  int timeoutMs,
                                  bool copyFile,
                                  QScreen* targetScreen,
@@ -372,6 +374,7 @@ ResultThumbnail::ResultThumbnail(const QPixmap& pixmap,
       m_path(std::move(path)),
       m_restoreClipboardPath(std::move(restoreClipboardPath)),
       m_deleteRoot(std::move(deleteRoot)),
+      m_pendingSavePath(std::move(pendingSavePath)),
       m_copyFile(copyFile),
       m_targetScreen(targetScreen) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
@@ -778,10 +781,11 @@ void ResultThumbnail::animateSwipeOut(SwipeAction action, bool finalizeAction) {
     connect(animation, &QPropertyAnimation::finished, this, [this, action, finalizeAction] {
         if (!finalizeAction)
             return;
-        if (action == SwipeAction::Delete)
+        if (action == SwipeAction::Delete) {
             deleteAndClose();
-        else
-            close();
+            return;
+        }
+        keepFileAndClose();
     });
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
@@ -810,6 +814,17 @@ void ResultThumbnail::deleteAndClose() {
         return;
 
     restoreClipboard();
+    close();
+}
+
+void ResultThumbnail::keepFileAndClose() {
+    // m_pendingSavePath is only set when auto-save was off, so m_path points
+    // at a private temp file rather than a real file in the user's save
+    // directory. Copy it there now that the user has chosen to keep it.
+    if (!m_pendingSavePath.isEmpty() && !m_path.isEmpty()) {
+        QDir().mkpath(QFileInfo(m_pendingSavePath).absolutePath());
+        QFile::copy(m_path, m_pendingSavePath);
+    }
     close();
 }
 

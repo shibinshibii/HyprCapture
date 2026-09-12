@@ -374,16 +374,17 @@ class ResultThumbnailCollection {
                               const QString& path,
                               const QString& restoreClipboardPath,
                               const QString& deleteRoot,
+                              const QString& pendingSavePath,
                               int timeoutMs,
                               bool copyFile,
                               const std::vector<QScreen*>& screens) {
         for (QScreen* screen : screens) {
             m_thumbnails.push_back(std::make_unique<ResultThumbnail>(
-                pixmap, path, restoreClipboardPath, deleteRoot, timeoutMs, copyFile, screen));
+                pixmap, path, restoreClipboardPath, deleteRoot, pendingSavePath, timeoutMs, copyFile, screen));
         }
         if (m_thumbnails.empty())
             m_thumbnails.push_back(std::make_unique<ResultThumbnail>(
-                pixmap, path, restoreClipboardPath, deleteRoot, timeoutMs, copyFile, nullptr));
+                pixmap, path, restoreClipboardPath, deleteRoot, pendingSavePath, timeoutMs, copyFile, nullptr));
         connectSwipeSynchronization();
     }
 
@@ -693,6 +694,7 @@ int main(int argc, char** argv) {
         {"recording-transcode-alpha", "Preserve alpha while transcoding.", "0|1", "0"},
         {"recording-transcode-duration-ms", "Expected transcode duration.", "ms", "1"},
         {"thumbnail-delete-root", "Directory where thumbnail files may be deleted.", "path"},
+        {"thumbnail-pending-save", "Path to persist the thumbnail's file to if the user keeps it (swipe right) when auto-save is off.", "path"},
         {"restore-clipboard", "Clipboard snapshot to restore when deleting the thumbnail image.", "path"},
         {"quick", "Capture immediately."},
         {"record", "Use the overlay to start a compositor-side recording."},
@@ -710,6 +712,7 @@ int main(int argc, char** argv) {
                                              thumbnailTarget,
                                              parser.value("restore-clipboard"),
                                              parser.value("thumbnail-delete-root"),
+                                             parser.value("thumbnail-pending-save"),
                                              boundedInt(parser.value("thumbnail-timeout-ms"), 5000, 0, MAX_THUMBNAIL_TIMEOUT_MS),
                                              false,
                                              thumbnailScreens(parser.value("thumbnail-monitor")));

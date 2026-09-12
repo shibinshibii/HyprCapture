@@ -21,6 +21,7 @@ class ResultThumbnail final : public QWidget {
                     QString path,
                     QString restoreClipboardPath,
                     QString deleteRoot,
+                    QString pendingSavePath,
                     int timeoutMs,
                     bool copyFile = false,
                     QScreen* targetScreen = nullptr,
@@ -61,12 +62,14 @@ class ResultThumbnail final : public QWidget {
     void resetSwipe();
     void animateSwipeOut(SwipeAction action, bool finalizeAction);
     void deleteAndClose();
+    void keepFileAndClose();
     void restoreClipboard() const;
     void startCloseTimer(int timeoutMs);
 
     QString m_path;
     QString m_restoreClipboardPath;
     QString m_deleteRoot;
+    QString m_pendingSavePath;
     bool    m_copyFile = false;
     QPointer<QScreen> m_targetScreen;
     QWidget* m_card = nullptr;

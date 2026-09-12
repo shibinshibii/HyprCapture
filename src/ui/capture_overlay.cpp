@@ -751,6 +751,26 @@ QString thumbnailDeleteRoot(const hyprcapture::CaptureDefaults& defaults) {
     return QString::fromStdString(hyprcapture::expandUserPath(defaults.saveDir).string());
 }
 
+// When `save` is disabled, the full-resolution capture only ever lands in a
+// private runtime temp file (see thumbnailTargetPath) — nothing is written
+// to the user's configured save directory. This computes where it *would*
+// go if the user decides to keep it (swipe-right on the thumbnail), using
+// the same directory + filename-template logic as a normal save. It's a
+// plan, not a write: the directory is intentionally not created here, so a
+// capture the user discards never leaves so much as an empty folder behind.
+// Returns empty when `save` is already on, since the file is persisted
+// automatically and there's nothing left for a swipe to do.
+QString pendingSaveTargetPath(const hyprcapture::CaptureDefaults& defaults, const QString& windowClass, const QString& windowTitle) {
+    if (defaults.save)
+        return {};
+
+    const auto dirPath = hyprcapture::expandUserPath(defaults.saveDir);
+    QDir       dir(QString::fromStdString(dirPath.string()));
+    return uniqueOutputPath(
+        dir,
+        QString::fromStdString(hyprcapture::makeTimestampedFilename(defaults.filenameTemplate, windowClass.toStdString(), windowTitle.toStdString())));
+}
+
 QString saveThumbnailPreview(const QImage& image) {
     if (image.isNull())
         return {};
@@ -3997,13 +4017,15 @@ void CaptureOverlay::renderAndSaveCapture() {
                                                                QString::fromStdString(filenameMetadata.windowClass),
                                                                QString::fromStdString(filenameMetadata.windowTitle));
     const QString targetPath = thumbnailTargetPath(m_defaults, plannedOutputPath);
+    const QString pendingSavePath =
+        pendingSaveTargetPath(m_defaults, QString::fromStdString(filenameMetadata.windowClass), QString::fromStdString(filenameMetadata.windowTitle));
     const QString restoreClipboardPath =
         (m_defaults.clipboard && m_defaults.showThumbnail) ? hyprcapture::ui::runtimeFile("clipboard", ".json") : QString{};
     bool thumbnailStarted = false;
     if (m_defaults.showThumbnail) {
         const QString previewPath = saveThumbnailPreview(image);
         if (!previewPath.isEmpty()) {
-            showThumbnail(previewPath, targetPath, restoreClipboardPath);
+            showThumbnail(previewPath, targetPath, restoreClipboardPath, pendingSavePath);
             thumbnailStarted = true;
         }
     }
@@ -4027,7 +4049,8 @@ void CaptureOverlay::renderAndSaveCapture() {
               restoreClipboardPath,
               thumbnailStarted,
               m_mode,
-              filenameMetadata);
+              filenameMetadata,
+              pendingSavePath);
 }
 
 void CaptureOverlay::saveImage(const QImage& image,
@@ -4036,7 +4059,8 @@ void CaptureOverlay::saveImage(const QImage& image,
                                const QString& restoreClipboardPath,
                                bool thumbnailStarted,
                                hyprcapture::CaptureMode mode,
-                               hyprcapture::FilenameMetadata filenameMetadata) {
+                               hyprcapture::FilenameMetadata filenameMetadata,
+                               const QString& pendingSavePath) {
     const auto defaults = m_defaults;
     auto*      worker = QThread::create([this,
                                          image,
@@ -4046,6 +4070,7 @@ void CaptureOverlay::saveImage(const QImage& image,
                                          thumbnailStarted,
                                          mode,
                                          filenameMetadata,
+                                         pendingSavePath,
                                          clipboardSnapshot = std::move(clipboardSnapshot)] {
         QElapsedTimer totalTimer;
         totalTimer.start();
@@ -4053,7 +4078,7 @@ void CaptureOverlay::saveImage(const QImage& image,
         traceTiming(QStringLiteral("output_worker_total"), totalTimer.elapsed());
         QMetaObject::invokeMethod(
             this,
-            [this, image, result, thumbnailStarted, defaults, mode, filenameMetadata] {
+            [this, image, result, thumbnailStarted, defaults, mode, filenameMetadata, pendingSavePath] {
                 traceTiming(QStringLiteral("output_ready"));
                 endHymissionCaptureInputSuppression();
                 if (result.clipboardRequested && !result.clipboardCopied)
@@ -4061,7 +4086,7 @@ void CaptureOverlay::saveImage(const QImage& image,
                 if (defaults.save)
                     hyprcapture::ui::showScreenshotNotification(defaults, mode, filenameMetadata, result.savedPath);
                 if (result.showThumbnail && !thumbnailStarted) {
-                    showThumbnail(result.savedPath, result.savedPath, result.restoreClipboardPath);
+                    showThumbnail(result.savedPath, result.savedPath, result.restoreClipboardPath, pendingSavePath);
                     qApp->quit();
                     return;
                 }
@@ -4073,7 +4098,7 @@ void CaptureOverlay::saveImage(const QImage& image,
     worker->start();
 }
 
-void CaptureOverlay::showThumbnail(const QString& previewPath, const QString& targetPath, const QString& restoreClipboardPath) {
+void CaptureOverlay::showThumbnail(const QString& previewPath, const QString& targetPath, const QString& restoreClipboardPath, const QString& pendingSavePath) {
     if (previewPath.isEmpty())
         return;
 
@@ -4086,6 +4111,8 @@ void CaptureOverlay::showThumbnail(const QString& previewPath, const QString& ta
         args << "--thumbnail-delete-root" << deleteRoot;
     if (!restoreClipboardPath.isEmpty())
         args << "--restore-clipboard" << restoreClipboardPath;
+    if (!pendingSavePath.isEmpty())
+        args << "--thumbnail-pending-save" << pendingSavePath;
     QProcess::startDetached(QCoreApplication::applicationFilePath(), args);
     traceTiming(QStringLiteral("thumbnail_started"));
     endHymissionCaptureInputSuppression();
